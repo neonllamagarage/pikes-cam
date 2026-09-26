@@ -474,8 +474,11 @@
         return;
       }
 
-      visible.forEach(item => {
-        const sizeBadge = parseItemSize(item.title);
+     visible.forEach(item => {
+        // Priority: 1. Column K Size -> 2. Title regex fallback
+        const sizeBadge = (item.size && item.size.trim().length > 0) 
+          ? item.size.toUpperCase() 
+          : parseItemSize(item.title);
 
         container.innerHTML += `
           <div onclick="openItemStudio('${item.sku}')" class="glass-panel p-3 rounded-2xl border-2 ${item.isOverhauled ? 'border-emerald-500/50 opacity-70' : 'border-slate-700 hover:border-orange-500'} cursor-pointer flex flex-col justify-between transition active:scale-95 shadow-lg group">
@@ -514,6 +517,19 @@
       document.getElementById('slot-tag-2').innerText = "WAIT";
 
       document.getElementById('studioItemTitle').innerText = selectedAuditItem.title;
+      if (selectedAuditItem.size && selectedAuditItem.size.trim().length > 0) {
+        const sel = document.getElementById('studioSizeSelect');
+        const cleanSize = selectedAuditItem.size.trim();
+        const hasOption = Array.from(sel.options).some(opt => opt.value.toLowerCase() === cleanSize.toLowerCase());
+        
+        if (hasOption) {
+          sel.value = cleanSize;
+        } else {
+          // Temporarily append the custom size so it displays cleanly in the studio
+          const customOpt = new Option(cleanSize, cleanSize, true, true);
+          sel.add(customOpt);
+        }
+      }
       document.getElementById('studioItemSku').innerText = `SKU: ${selectedAuditItem.sku}`;
       document.getElementById('studioQtyInput').value = selectedAuditItem.qty || 1;
       document.getElementById('studioBinInput').value = document.getElementById('targetBin').value.trim().toUpperCase();
