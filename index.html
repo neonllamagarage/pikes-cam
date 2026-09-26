@@ -421,14 +421,46 @@
 
     function parseItemSize(title) {
       if (!title) return 'ONE SIZE';
-      const match = title.match(/\b(\d+[-/]\d+\s*[YyMm]?|\d+\s*[YyMm]|One Size|X-Large|Large|Medium|Small|Toddler|Infant|Adult|Child|Plus|2T|3T|4T)\b|(?<!['’])\b(XL|L|M|S)\b/i);
-      if (!match) return 'ONE SIZE';
-      let s = match[0].toUpperCase();
-      if (s === 'S') return 'SMALL';
-      if (s === 'M') return 'MEDIUM';
-      if (s === 'L') return 'LARGE';
-      if (s === 'XL') return 'X-LARGE';
-      return s;
+
+      // 1. Check for Month ranges (e.g., 3-6 Months, 6-12M, 0-3 Months)
+      const monthMatch = title.match(/\b(\d+[-/]\d+\s*(?:Months?|Mo|M)\b|\d+\s*(?:Months?|Mo)\b)/i);
+      if (monthMatch) return monthMatch[0].toUpperCase();
+
+      // 2. Check for Toddler / Numeric T-sizes (e.g., 2T, 3T, 4T, 5T)
+      const toddlerMatch = title.match(/\b([2-5]T)\b/i);
+      if (toddlerMatch) return toddlerMatch[0].toUpperCase();
+
+      // 3. Check for Combined Age/Size labels (e.g., "Child XL 14-16", "Child Large 12-14", "Size 14-16")
+      const comboMatch = title.match(/\b(?:Child|Kids?|Adult|Size)?\s*(XL|X-Large|Large|Medium|Small|Toddler)\s*(\d+[-/]\d+)\b/i);
+      if (comboMatch) {
+        let sizeName = comboMatch[1].toUpperCase();
+        if (sizeName === 'XL') sizeName = 'X-LARGE';
+        return `${sizeName} (${comboMatch[2]})`;
+      }
+
+      // 4. Check for standalone numeric child/plus size ranges (e.g., 14-16, 12-14, 4-6, 7-8)
+      const numRangeMatch = title.match(/(?<!\d)\b([1-9]|1[0-8])[-/]([2-9]|1[0-8])\b(?!\d)/);
+      if (numRangeMatch && !title.toLowerCase().includes('1:64')) {
+        return `SZ ${numRangeMatch[0]}`;
+      }
+
+      // 5. Check for One Size / OSFM
+      if (/\b(One\s*Size|OSFM|OS|One-Size)\b/i.test(title)) return 'ONE SIZE';
+
+      // 6. Check for standard sizes (X-Large, Large, Medium, Small, Toddler, Plus)
+      if (/\b(X-Large|XXL|2XL|3XL)\b/i.test(title) || /(?<!['’\w])XL(?!\w)/i.test(title)) return 'X-LARGE';
+      if (/\b(Large)\b/i.test(title) || /(?<!['’\w])L(?!\w)/i.test(title)) return 'LARGE';
+      if (/\b(Medium)\b/i.test(title) || /(?<!['’\w])M(?!\w)/i.test(title)) return 'MEDIUM';
+      if (/\b(Small)\b/i.test(title) || /(?<!['’\w])S(?!\w)/i.test(title)) return 'SMALL';
+      if (/\b(Toddler)\b/i.test(title)) return 'TODDLER';
+      if (/\b(Plus\s*Size|Plus)\b/i.test(title)) return 'PLUS SIZE';
+
+      // 7. Fall back to demographic only if no specific garment size exists
+      if (/\b(Infant|Baby)\b/i.test(title)) return 'INFANT';
+      if (/\b(Child|Kids?|Boys?|Girls?)\b/i.test(title)) return 'CHILD';
+      if (/\b(Adult|Womens?|Mens?)\b/i.test(title)) return 'ADULT';
+
+      return 'ONE SIZE';
     }
 
     function renderCardGrid() {
