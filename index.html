@@ -3,96 +3,255 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
-  <title>Pike's 13 Smart Cam</title>
+  <title>Pike's 13 Studio</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { background-color: #0b1329; color: #cbd5e1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .glass-panel { background: #162238; border: 1px solid #233554; }
+    .loader { border: 3px solid #233554; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .flash-overlay { animation: camFlash 0.12s ease-out; }
     @keyframes camFlash { 0% { background: rgba(255,255,255,0.8); } 100% { background: transparent; } }
     .shutter-glow:active { transform: scale(0.90); }
   </style>
 </head>
-<body class="p-2 sm:p-4 min-h-screen flex flex-col justify-between">
+<body class="p-2 sm:p-4 min-h-screen">
 
-  <div class="w-full max-w-lg mx-auto space-y-3">
-    <!-- TOP HEADER -->
-    <div class="flex items-center justify-between bg-slate-900/90 p-3 rounded-2xl border border-slate-800 shadow-xl">
-      <h1 class="text-sm font-black text-white tracking-wider flex items-center gap-1.5">
-        📸 PIKE'S 13 <span class="text-emerald-400">RAPID CAM</span>
-      </h1>
-      <span id="camStatus" class="text-xs font-mono font-bold text-emerald-400 animate-pulse">STREAMING</span>
-    </div>
-
-    <!-- INTAKE CONTROLS: CATEGORY, BIN, QTY -->
-    <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800 grid grid-cols-12 gap-2 shadow-lg">
-      <div class="col-span-4">
-        <label class="block text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Type</label>
-        <select id="itemType" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold text-xs outline-none">
-          <option value="Diecast" selected>🚗 Diecast</option>
-          <option value="Clothing">👕 Clothing</option>
-          <option value="Other">📦 Other</option>
-        </select>
+  <div class="w-full max-w-5xl mx-auto space-y-3">
+    
+    <!-- TOP APP BAR -->
+    <div class="flex items-center justify-between bg-slate-900/95 p-2 sm:p-3 rounded-2xl border-2 border-slate-800 shadow-xl">
+      <div class="flex items-center gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800">
+        <button type="button" onclick="switchMode('intake')" id="tabIntake" class="px-5 py-2.5 rounded-lg text-xs sm:text-sm font-black tracking-wider bg-emerald-600 text-white shadow-lg transition active:scale-95">
+          📸 RAPID INTAKE
+        </button>
+        <button type="button" onclick="switchMode('audit')" id="tabAudit" class="px-5 py-2.5 rounded-lg text-xs sm:text-sm font-black tracking-wider text-slate-400 hover:text-white transition active:scale-95">
+          🔍 AUDIT BIN
+        </button>
       </div>
-      <div class="col-span-5">
-        <label class="block text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Bin / Location</label>
-        <input type="text" id="binCode" placeholder="e.g. O-H3" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-emerald-400 font-mono font-black text-xs uppercase outline-none focus:border-blue-500">
-      </div>
-      <div class="col-span-3">
-        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Qty</label>
-        <input type="number" id="itemQty" value="1" min="1" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono font-bold text-xs text-center outline-none">
+      <div class="flex items-center gap-2">
+        <span id="camStatus" class="text-xs font-mono font-bold text-emerald-400 animate-pulse">STREAM ACTIVE</span>
       </div>
     </div>
 
-    <!-- DIRECT WEBRTC STREAM VIEWFINDER -->
-    <div class="relative w-full aspect-[4/3] bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex items-center justify-center">
+    <!-- PERSISTENT LIVE VIEWFINDER -->
+    <div class="relative w-full aspect-[4/3] max-h-[460px] bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex items-center justify-center">
       <video id="liveVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
       <div id="flashScreen" class="absolute inset-0 pointer-events-none z-30"></div>
       <canvas id="frameCanvas" class="hidden"></canvas>
 
-      <!-- CONTINUOUS IN-APP SHUTTER BUTTON -->
+      <!-- AUDIT HUD REFERENCE OVERLAY -->
+      <div id="auditOverlayBox" class="hidden absolute top-3 right-3 w-28 sm:w-36 aspect-square bg-slate-950/80 border-2 border-orange-500 rounded-xl overflow-hidden shadow-2xl z-20 flex flex-col">
+        <span class="text-[9px] bg-orange-600 text-white font-black text-center py-0.5">OLD EBAY PHOTO</span>
+        <img id="auditRefThumb" src="" class="w-full h-full object-contain p-1">
+      </div>
+
+      <!-- AUDIT HUD TARGET STEP PILL -->
+      <div id="auditTargetBadge" class="hidden absolute top-3 left-3 bg-slate-950/80 backdrop-blur px-3 py-1 rounded-full border border-orange-500 text-xs font-mono font-black text-orange-400 z-20">
+        TARGET: <span id="auditStepName">1. FRONT</span>
+      </div>
+
+      <!-- INTAKE SHOT COUNTER BADGE -->
+      <div id="intakeBadge" class="absolute top-3 left-3 bg-slate-950/80 backdrop-blur px-3 py-1 rounded-full border border-slate-700 text-xs font-mono font-bold text-white z-20">
+        Shots: <span id="shotCount" class="text-emerald-400 font-black text-sm">0</span> / 12
+      </div>
+
+      <!-- CONTINUOUS HARDWARE SHUTTER -->
       <div class="absolute bottom-4 inset-x-0 flex items-center justify-center z-20">
-        <button type="button" onclick="snapContinuous()" class="shutter-glow bg-emerald-500 hover:bg-emerald-400 border-4 border-white w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition">
+        <button type="button" onclick="handleShutterPress()" class="shutter-glow bg-emerald-500 hover:bg-emerald-400 border-4 border-white w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition">
           <div class="w-14 h-14 rounded-full border-2 border-black/20 bg-emerald-600 flex items-center justify-center">
             <span class="text-white text-xl">📸</span>
           </div>
         </button>
       </div>
+    </div>
 
-      <!-- SHOT COUNTER BADGE -->
-      <div class="absolute top-3 left-3 bg-slate-950/80 backdrop-blur px-3 py-1 rounded-full border border-slate-700 text-xs font-mono font-bold text-white z-20">
-        Shots: <span id="shotCount" class="text-emerald-400 font-black text-sm">0</span> / 12
+    <!-- ========================================================
+         VIEW 1: RAPID INTAKE CONTROL DECK
+         ======================================================== -->
+    <div id="deckIntake" class="space-y-3">
+      <div class="glass-panel p-3 sm:p-5 rounded-2xl space-y-3 border border-slate-800 shadow-xl">
+        <div class="grid grid-cols-12 gap-2">
+          <div class="col-span-4">
+            <label class="block text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Type</label>
+            <select id="intakeType" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold text-xs outline-none">
+              <option value="Diecast" selected>🚗 Diecast</option>
+              <option value="Clothing">👕 Clothing</option>
+              <option value="Other">📦 Other</option>
+            </select>
+          </div>
+          <div class="col-span-5">
+            <label class="block text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Bin / Location</label>
+            <input type="text" id="intakeBin" placeholder="e.g. O-H3" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-emerald-400 font-mono font-black text-xs uppercase outline-none focus:border-blue-500">
+          </div>
+          <div class="col-span-3">
+            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Qty</label>
+            <input type="number" id="intakeQty" value="1" min="1" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono font-bold text-xs text-center outline-none">
+          </div>
+        </div>
+
+        <!-- TRAY -->
+        <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center gap-2 overflow-x-auto min-h-[64px]" id="intakeThumbStrip">
+          <span class="text-xs text-slate-500 italic px-2">Tap shutter above to snap shots.</span>
+        </div>
+
+        <div class="flex gap-2">
+          <button type="button" onclick="clearIntake()" class="px-4 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs border border-slate-700 transition">Clear</button>
+          <button type="button" onclick="commitIntake()" id="btnStageIntake" class="flex-grow bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-xl text-sm shadow-xl flex items-center justify-center gap-2 border border-blue-400 transition active:scale-95">
+            <span>🚀</span> <span id="stageIntakeLabel">STAGE FOR LISTER</span>
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- REAL-TIME THUMBNAIL STRIP -->
-    <div class="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 flex items-center gap-2 overflow-x-auto min-h-[64px]" id="thumbStrip">
-      <span class="text-xs text-slate-500 italic px-2" id="emptyNotice">Tap shutter to capture shots in real time.</span>
+    <!-- ========================================================
+         VIEW 2: AUDIT BIN WORKSTATION
+         ======================================================== -->
+    <div id="deckAudit" class="hidden space-y-3">
+      
+      <!-- STAGE A: BOX SELECTOR & ACTIONS -->
+      <div id="auditStageBinSelect" class="glass-panel p-4 rounded-2xl shadow-xl space-y-3 border border-slate-800">
+        <div class="flex gap-2">
+          <input type="text" id="targetBin" placeholder="ENTER BIN (E.G. O-H3, HC038)" class="flex-grow p-3 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm font-black uppercase outline-none focus:border-orange-500">
+          <button onclick="fetchBinCostumes()" id="btnLoadBin" class="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-black text-xs text-white shadow transition active:scale-95">LOAD</button>
+        </div>
+        
+        <div class="flex gap-2 flex-wrap items-center justify-between">
+          <div class="flex gap-1.5 flex-wrap">
+            <button type="button" onclick="setAuditBin('O-H3')" class="px-3 py-1 bg-slate-800 text-slate-200 rounded text-xs font-mono font-bold">O-H3</button>
+            <button type="button" onclick="setAuditBin('O-B4')" class="px-3 py-1 bg-slate-800 text-slate-200 rounded text-xs font-mono font-bold">O-B4</button>
+            <button type="button" onclick="setAuditBin('HC')" class="px-3 py-1 bg-slate-800 text-slate-200 rounded text-xs font-mono font-bold">HC-</button>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="openStorewideSearch()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow">🔍 Find Misplaced</button>
+            <button onclick="startUnlistedStudio()" class="bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow">+ Unlisted</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STAGE B: 2-WIDE CARD PICKER -->
+      <div id="auditCardDeck" class="hidden space-y-3">
+        <div class="flex justify-between items-center px-1">
+          <span class="text-xs font-bold text-slate-300" id="auditCountLabel">Items:</span>
+          <label class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-2.5 py-1 rounded-lg cursor-pointer">
+            <input type="checkbox" id="auditHideDone" checked onchange="renderCardGrid()" class="accent-emerald-500 w-3.5 h-3.5">
+            <span class="text-[11px] font-bold text-emerald-400">Hide Done</span>
+          </label>
+        </div>
+        <div id="auditGridContainer" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+      </div>
+
+      <!-- STAGE C: ITEM AUDIT STUDIO CONTROLS -->
+      <div id="auditStudioControls" class="hidden glass-panel p-4 rounded-2xl space-y-3 border-2 border-orange-500/60 shadow-xl">
+        <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+          <div>
+            <h3 id="studioItemTitle" class="text-xs sm:text-sm font-black text-white line-clamp-1">---</h3>
+            <span id="studioItemSku" class="text-[10px] font-mono text-orange-400">SKU: ---</span>
+          </div>
+          <button onclick="exitStudioToGrid()" class="text-slate-400 hover:text-white text-xs font-bold px-2 py-1">✕ Exit</button>
+        </div>
+
+        <!-- 3-SLOT MINI STRIP -->
+        <div class="grid grid-cols-3 gap-2">
+          <div id="slot-0" onclick="setAuditStep(0)" class="p-2 rounded-xl bg-orange-600 text-white border border-orange-400 text-center cursor-pointer">
+            <span class="block text-[10px] font-black">1. FRONT</span>
+            <span id="slot-tag-0" class="text-[9px] font-mono">READY</span>
+          </div>
+          <div id="slot-1" onclick="setAuditStep(1)" class="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700 text-center cursor-pointer">
+            <span class="block text-[10px] font-black">2. BACK</span>
+            <span id="slot-tag-1" class="text-[9px] font-mono">WAIT</span>
+          </div>
+          <div id="slot-2" onclick="setAuditStep(2)" class="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700 text-center cursor-pointer">
+            <span class="block text-[10px] font-black">3. TAG</span>
+            <span id="slot-tag-2" class="text-[9px] font-mono">WAIT</span>
+          </div>
+        </div>
+
+        <!-- DETAILS & REVISE -->
+        <div class="grid grid-cols-12 gap-2 pt-1">
+          <div class="col-span-5">
+            <label class="block text-[10px] font-black text-orange-400 uppercase mb-1">Size</label>
+            <select id="studioSizeSelect" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold text-xs outline-none">
+              <option value="Small">Small</option><option value="Medium">Medium</option><option value="Large">Large</option><option value="X-Large">X-Large</option><option value="One Size">One Size</option><option value="Toddler">Toddler</option>
+            </select>
+          </div>
+          <div class="col-span-4">
+            <label class="block text-[10px] font-black text-emerald-400 uppercase mb-1">Bin</label>
+            <input type="text" id="studioBinInput" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-emerald-400 font-mono font-black text-xs uppercase outline-none">
+          </div>
+          <div class="col-span-3">
+            <label class="block text-[10px] font-black text-blue-400 uppercase mb-1">Qty</label>
+            <input type="number" id="studioQtyInput" value="1" min="1" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-black text-xs text-center outline-none">
+          </div>
+        </div>
+
+        <button onclick="commitAuditRevision()" id="btnReviseAudit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-sm shadow-2xl border border-blue-400 transition active:scale-95 flex items-center justify-center gap-2">
+          <span>🚀</span> <span id="reviseLabel">OVERWRITE EBAY & RETURN</span>
+        </button>
+      </div>
     </div>
 
-    <!-- ACTION BUTTONS -->
-    <div class="flex gap-2">
-      <button type="button" onclick="clearShots()" class="px-4 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs border border-slate-700 transition">
-        Clear
-      </button>
-      <button type="button" onclick="stageToLister()" id="btnStage" class="flex-grow bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-xl text-sm shadow-xl flex items-center justify-center gap-2 border border-blue-400 transition active:scale-95">
-        <span>🚀</span> <span id="stageLabel">STAGE FOR LISTER</span>
-      </button>
+    <!-- MODAL: STOREWIDE MISPLACED SEARCH -->
+    <div id="modalSearch" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50">
+      <div class="glass-panel p-4 rounded-2xl w-full max-w-lg border-2 border-blue-500 space-y-3">
+        <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+          <h3 class="text-xs font-black text-blue-400 uppercase tracking-wider">Storewide Misplaced Search</h3>
+          <button onclick="closeStorewideSearch()" class="text-slate-400 hover:text-white text-xs font-bold">✖ Close</button>
+        </div>
+        <div class="flex gap-2">
+          <input type="text" id="storewideQuery" placeholder="e.g. Batman, Ursula" class="flex-grow p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs font-bold outline-none">
+          <button onclick="runStorewideSearch()" id="btnRunSearch" class="bg-blue-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl">SEARCH</button>
+        </div>
+        <div id="searchResultsList" class="space-y-2 max-h-56 overflow-y-auto pr-1"></div>
+      </div>
     </div>
+
   </div>
 
   <script>
-    // PASTE YOUR GOOGLE APPS SCRIPT WEB APP /EXEC URL HERE:
+    // ========================================================
+    // PASTE YOUR GAS WEB APP /EXEC URL HERE:
+    // ========================================================
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxuU4w0O60decgu8G49UyMDwDS8JMebEMSlvVE67IrZ2OMdcbC0FFQtocKAdwVR0rSmNw/exec";
 
-    let stagedPhotos = [];
+    let activeMode = 'intake';
     let videoStream = null;
+
+    // INTAKE STATE
+    let intakeShots = [];
+
+    // AUDIT STATE
+    let activeBoxItems = [];
+    let selectedAuditItem = null;
+    let auditStep = 0; // 0=Front, 1=Back, 2=Tag
+    let auditShots = [null, null, null];
 
     window.addEventListener('DOMContentLoaded', () => {
       startCamera();
-      const savedBin = localStorage.getItem('pikes_bin');
-      if (savedBin) document.getElementById('binCode').value = savedBin;
+
+      // Check URL query parameters (e.g. ?bin=O-H3&mode=audit)
+      const params = new URLSearchParams(window.location.search);
+      const urlBin = params.get('bin');
+      const urlMode = params.get('mode');
+
+      if (urlBin) {
+        document.getElementById('intakeBin').value = urlBin.toUpperCase();
+        document.getElementById('targetBin').value = urlBin.toUpperCase();
+      } else {
+        const saved = localStorage.getItem('pikes_bin');
+        if (saved) {
+          document.getElementById('intakeBin').value = saved;
+          document.getElementById('targetBin').value = saved;
+        }
+      }
+
+      if (urlMode === 'audit') {
+        switchMode('audit');
+        if (urlBin) fetchBinCostumes();
+      }
     });
 
+    // 1. DIRECT HARDWARE CAMERA WEBRTC
     async function startCamera() {
       const video = document.getElementById('liveVideo');
       const status = document.getElementById('camStatus');
@@ -103,20 +262,29 @@
           audio: false
         });
         video.srcObject = videoStream;
-        status.innerText = "STREAMING";
+        status.innerText = "STREAM ACTIVE";
         status.className = "text-xs font-mono font-bold text-emerald-400 animate-pulse";
       } catch (err) {
-        status.innerText = "ERROR";
+        status.innerText = "CAMERA BLOCKED";
         status.className = "text-xs font-mono font-bold text-red-400";
-        alert("Camera blocked. Please tap 'Allow' when the browser asks for camera access.");
+        alert("Camera permission blocked. Please allow camera access in Chrome.");
       }
     }
 
-    function snapContinuous() {
-      if (stagedPhotos.length >= 12) return alert("Maximum 12 photos reached.");
+    // 2. CENTRAL SHUTTER ROUTER
+    function handleShutterPress() {
+      if (activeMode === 'intake') {
+        snapIntakeFrame();
+      } else if (activeMode === 'audit') {
+        snapAuditFrame();
+      }
+    }
+
+    // FLASH & CAPTURE LOGIC
+    function captureRawBase64() {
       const video = document.getElementById('liveVideo');
       const canvas = document.getElementById('frameCanvas');
-      if (!videoStream || video.videoWidth === 0) return alert("Camera not ready.");
+      if (!videoStream || video.videoWidth === 0) return null;
 
       const flash = document.getElementById('flashScreen');
       flash.classList.add('flash-overlay');
@@ -129,82 +297,308 @@
 
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(video, 0, 0, w, h);
-
-      const b64 = canvas.toDataURL('image/jpeg', 0.72);
-      stagedPhotos.push(b64);
-      renderThumbs();
-
       if (navigator.vibrate) navigator.vibrate(25);
+
+      return canvas.toDataURL('image/jpeg', 0.72);
     }
 
-    function renderThumbs() {
-      const strip = document.getElementById('thumbStrip');
-      const countEl = document.getElementById('shotCount');
-      countEl.innerText = stagedPhotos.length;
+    // --- INTAKE ACTIONS ---
+    function snapIntakeFrame() {
+      if (intakeShots.length >= 12) return alert("Maximum 12 shots reached.");
+      const b64 = captureRawBase64();
+      if (!b64) return;
 
-      if (stagedPhotos.length === 0) {
-        strip.innerHTML = '<span class="text-xs text-slate-500 italic px-2">Tap shutter to capture shots in real time.</span>';
+      intakeShots.push(b64);
+      renderIntakeTray();
+    }
+
+    function renderIntakeTray() {
+      const strip = document.getElementById('intakeThumbStrip');
+      document.getElementById('shotCount').innerText = intakeShots.length;
+
+      if (intakeShots.length === 0) {
+        strip.innerHTML = '<span class="text-xs text-slate-500 italic px-2">Tap shutter above to snap shots.</span>';
         return;
       }
 
       strip.innerHTML = '';
-      stagedPhotos.forEach((b64, idx) => {
+      intakeShots.forEach((b64, idx) => {
         strip.innerHTML += `
           <div class="relative flex-shrink-0 w-14 h-14 bg-slate-950 border border-slate-700 rounded-lg overflow-hidden">
             <img src="${b64}" class="w-full h-full object-cover">
             <span class="absolute top-0 left-0 bg-blue-600 text-white font-mono text-[9px] px-1 rounded-br font-bold">${idx + 1}</span>
-            <button type="button" onclick="deleteShot(${idx})" class="absolute top-0 right-0 bg-red-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-bl font-black">✕</button>
+            <button type="button" onclick="deleteIntakeShot(${idx})" class="absolute top-0 right-0 bg-red-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-bl font-black">✕</button>
           </div>`;
       });
       strip.scrollLeft = strip.scrollWidth;
     }
 
-    function deleteShot(idx) {
-      stagedPhotos.splice(idx, 1);
-      renderThumbs();
-    }
+    function deleteIntakeShot(idx) { intakeShots.splice(idx, 1); renderIntakeTray(); }
+    function clearIntake() { intakeShots = []; renderIntakeTray(); }
 
-    function clearShots() {
-      stagedPhotos = [];
-      renderThumbs();
-    }
-
-    async function stageToLister() {
-      if (stagedPhotos.length === 0) return alert("Take at least one photo.");
-      const binVal = document.getElementById('binCode').value.trim();
-      if (!binVal) {
-        alert("Enter Bin / Location.");
-        document.getElementById('binCode').focus();
-        return;
-      }
+    async function commitIntake() {
+      if (intakeShots.length === 0) return alert("Take at least one shot.");
+      const binVal = document.getElementById('intakeBin').value.trim().toUpperCase();
+      if (!binVal) return alert("Please enter Bin / Location.");
 
       localStorage.setItem('pikes_bin', binVal);
 
       const payload = {
-        action: "stageIntake",
         bin: binVal,
-        itemType: document.getElementById('itemType').value,
-        qty: parseInt(document.getElementById('itemQty').value) || 1,
-        imagesBase64: [...stagedPhotos]
+        itemType: document.getElementById('intakeType').value,
+        qty: parseInt(document.getElementById('intakeQty').value) || 1,
+        imagesBase64: [...intakeShots]
       };
 
       // Optimistic UI reset
-      clearShots();
-      document.getElementById('itemQty').value = "1";
+      clearIntake();
+      document.getElementById('intakeQty').value = "1";
+      const lbl = document.getElementById('stageIntakeLabel');
+      lbl.innerText = "STAGED! READY FOR NEXT";
+      setTimeout(() => { lbl.innerText = "STAGE FOR LISTER"; }, 1400);
 
-      const label = document.getElementById('stageLabel');
-      label.innerText = "STAGED! READY FOR NEXT CAR";
-      setTimeout(() => { label.innerText = "STAGE FOR LISTER"; }, 1500);
+      await apiPost("stageIntake", { payload: payload });
+    }
 
+    // --- AUDIT ACTIONS ---
+    function snapAuditFrame() {
+      if (!selectedAuditItem) return alert("Please select an item from the bin grid first.");
+      const b64 = captureRawBase64();
+      if (!b64) return;
+
+      auditShots[auditStep] = b64;
+      document.getElementById(`slot-tag-${auditStep}`).innerText = "DONE ✔";
+      document.getElementById(`slot-${auditStep}`).className = "p-2 rounded-xl bg-emerald-700 text-white border border-emerald-500 text-center cursor-pointer";
+
+      // Auto advance to next empty slot
+      let nextEmpty = [0, 1, 2].find(i => !auditShots[i]);
+      if (nextEmpty !== undefined) {
+        setAuditStep(nextEmpty);
+      }
+    }
+
+    function setAuditStep(step) {
+      auditStep = step;
+      const names = ["1. FRONT", "2. BACK", "3. TAG"];
+      document.getElementById('auditStepName').innerText = names[step];
+
+      for (let i = 0; i < 3; i++) {
+        const slot = document.getElementById(`slot-${i}`);
+        if (i === step) {
+          slot.className = "p-2 rounded-xl bg-orange-600 text-white border border-orange-400 text-center cursor-pointer";
+        } else if (auditShots[i]) {
+          slot.className = "p-2 rounded-xl bg-emerald-700 text-white border border-emerald-500 text-center cursor-pointer";
+        } else {
+          slot.className = "p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700 text-center cursor-pointer";
+        }
+      }
+    }
+
+    function setAuditBin(prefix) {
+      document.getElementById('targetBin').value = prefix;
+      fetchBinCostumes();
+    }
+
+    async function fetchBinCostumes() {
+      const bin = document.getElementById('targetBin').value.trim().toUpperCase();
+      if (!bin) return alert("Enter bin code.");
+
+      const btn = document.getElementById('btnLoadBin');
+      btn.innerHTML = `<span class="loader"></span>`;
+      btn.disabled = true;
+
+      const res = await apiPost("getCostumesByBoxBin", { bin: bin });
+      btn.innerHTML = "LOAD";
+      btn.disabled = false;
+
+      if (!res.success) return alert("Bin error: " + res.error);
+
+      activeBoxItems = res.items || [];
+      document.getElementById('auditCountLabel').innerText = `Box ${bin} (${activeBoxItems.length} items):`;
+      document.getElementById('auditCardDeck').classList.remove('hidden');
+      renderCardGrid();
+    }
+
+    function renderCardGrid() {
+      const container = document.getElementById('auditGridContainer');
+      container.innerHTML = '';
+      const hideDone = document.getElementById('auditHideDone').checked;
+      const visible = activeBoxItems.filter(i => !hideDone || !i.isOverhauled);
+
+      if (visible.length === 0) {
+        container.innerHTML = `<div class="col-span-full p-8 text-center text-emerald-400 font-black text-xs">🎉 All items in this box completed!</div>`;
+        return;
+      }
+
+      visible.forEach(item => {
+        container.innerHTML += `
+          <div onclick="openItemStudio('${item.sku}')" class="glass-panel p-2.5 rounded-xl border-2 ${item.isOverhauled ? 'border-emerald-500/50 opacity-70' : 'border-slate-700 hover:border-orange-500'} cursor-pointer flex flex-col justify-between transition active:scale-95 shadow">
+            <span class="text-[9px] font-mono font-bold text-orange-400">${item.sku}</span>
+            <div class="w-full h-32 bg-black/40 rounded-lg overflow-hidden flex items-center justify-center my-1.5">
+              <img src="${item.imageUrl || 'https://via.placeholder.com/100'}" class="w-full h-full object-contain p-1">
+            </div>
+            <div>
+              <span class="text-[10px] font-mono font-bold text-slate-300">Qty: ${item.qty}</span>
+              <h4 class="text-xs font-bold text-white line-clamp-1">${item.title}</h4>
+            </div>
+          </div>`;
+      });
+    }
+
+    function openItemStudio(sku) {
+      selectedAuditItem = activeBoxItems.find(i => i.sku === sku);
+      if (!selectedAuditItem) return;
+
+      auditShots = [null, null, null];
+      setAuditStep(0);
+      document.getElementById('slot-tag-0').innerText = "READY";
+      document.getElementById('slot-tag-1').innerText = "WAIT";
+      document.getElementById('slot-tag-2').innerText = "WAIT";
+
+      document.getElementById('studioItemTitle').innerText = selectedAuditItem.title;
+      document.getElementById('studioItemSku').innerText = `SKU: ${selectedAuditItem.sku}`;
+      document.getElementById('studioQtyInput').value = selectedAuditItem.qty || 1;
+      document.getElementById('studioBinInput').value = document.getElementById('targetBin').value.trim().toUpperCase();
+
+      document.getElementById('auditRefThumb').src = selectedAuditItem.imageUrl || 'https://via.placeholder.com/100';
+      document.getElementById('auditOverlayBox').classList.remove('hidden');
+      document.getElementById('auditTargetBadge').classList.remove('hidden');
+
+      document.getElementById('auditStageBinSelect').classList.add('hidden');
+      document.getElementById('auditCardDeck').classList.add('hidden');
+      document.getElementById('auditStudioControls').classList.remove('hidden');
+    }
+
+    function exitStudioToGrid() {
+      selectedAuditItem = null;
+      document.getElementById('auditOverlayBox').classList.add('hidden');
+      document.getElementById('auditTargetBadge').classList.add('hidden');
+      document.getElementById('auditStudioControls').classList.add('hidden');
+      document.getElementById('auditStageBinSelect').classList.remove('hidden');
+      document.getElementById('auditCardDeck').classList.remove('hidden');
+    }
+
+    async function commitAuditRevision() {
+      if (!auditShots[0] || !auditShots[1] || !auditShots[2]) {
+        return alert("Please snap all 3 shots (Front, Back, and Tag).");
+      }
+
+      const btn = document.getElementById('btnReviseAudit');
+      btn.innerHTML = `<span class="loader"></span> UPDATING...`;
+      btn.disabled = true;
+
+      const payload = {
+        itemId: selectedAuditItem.itemId,
+        sku: selectedAuditItem.sku,
+        bin: document.getElementById('studioBinInput').value.trim().toUpperCase(),
+        title: selectedAuditItem.title,
+        price: selectedAuditItem.price,
+        confirmedSize: document.getElementById('studioSizeSelect').value,
+        confirmedQty: parseInt(document.getElementById('studioQtyInput').value) || 1,
+        imagesBase64: auditShots
+      };
+
+      selectedAuditItem.isOverhauled = true;
+
+      apiPost("submitCostumeOverhaul", { payload: payload });
+
+      btn.innerHTML = `<span>🚀</span> <span>OVERWRITE EBAY & RETURN</span>`;
+      btn.disabled = false;
+
+      renderCardGrid();
+      exitStudioToGrid();
+    }
+
+    // --- STOREWIDE SEARCH ---
+    function openStorewideSearch() {
+      document.getElementById('modalSearch').classList.remove('hidden');
+      document.getElementById('storewideQuery').value = '';
+      document.getElementById('searchResultsList').innerHTML = '';
+      setTimeout(() => document.getElementById('storewideQuery').focus(), 100);
+    }
+
+    function closeStorewideSearch() {
+      document.getElementById('modalSearch').classList.add('hidden');
+    }
+
+    async function runStorewideSearch() {
+      const q = document.getElementById('storewideQuery').value.trim();
+      if (!q) return;
+
+      const list = document.getElementById('searchResultsList');
+      list.innerHTML = `<div class="p-4 text-center"><div class="loader"></div></div>`;
+
+      const res = await apiPost("searchCostumesStorewide", { query: q });
+      if (!res.success) return alert("Search error: " + res.error);
+
+      if (!res.items || res.items.length === 0) {
+        list.innerHTML = `<div class="p-3 text-center text-slate-400 text-xs">No matching costume found.</div>`;
+        return;
+      }
+
+      list.innerHTML = '';
+      res.items.forEach(item => {
+        list.innerHTML += `
+          <div class="p-2 bg-slate-900 border border-slate-700 rounded-lg flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <img src="${item.imageUrl || 'https://via.placeholder.com/40'}" class="w-9 h-9 object-contain rounded bg-white/5 border border-slate-800">
+              <div>
+                <h4 class="text-[11px] font-bold text-white line-clamp-1">${item.title}</h4>
+                <span class="text-[9px] text-orange-400 font-mono">Bin: ${item.sku}</span>
+              </div>
+            </div>
+            <button onclick='pullMisplacedItem(${JSON.stringify(item)})' class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2 py-1.5 rounded shadow shrink-0">
+              Pull to Bin
+            </button>
+          </div>`;
+      });
+    }
+
+    function pullMisplacedItem(item) {
+      closeStorewideSearch();
+      activeBoxItems.unshift(item);
+      renderCardGrid();
+      openItemStudio(item.sku);
+    }
+
+    // MODE SWITCHER
+    function switchMode(mode) {
+      activeMode = mode;
+      const tabI = document.getElementById('tabIntake');
+      const tabA = document.getElementById('tabAudit');
+      const deckI = document.getElementById('deckIntake');
+      const deckA = document.getElementById('deckAudit');
+      const intakeBadge = document.getElementById('intakeBadge');
+
+      if (mode === 'intake') {
+        tabI.className = "px-5 py-2.5 rounded-lg text-xs sm:text-sm font-black tracking-wider bg-emerald-600 text-white shadow-lg";
+        tabA.className = "px-5 py-2.5 rounded-lg text-xs sm:text-sm font-black tracking-wider text-slate-400 hover:text-white";
+        deckI.classList.remove('hidden');
+        deckA.classList.add('hidden');
+        intakeBadge.classList.remove('hidden');
+        exitStudioToGrid();
+      } else {
+        tabA.className = "px-5 py-2.5 rounded-lg text-xs sm:text-sm font-black tracking-wider bg-orange-600 text-white shadow-lg";
+        tabI.className = "px-5 py-2.5 rounded-lg text-xs sm:text-sm font-black tracking-wider text-slate-400 hover:text-white";
+        deckA.classList.remove('hidden');
+        deckI.classList.add('hidden');
+        intakeBadge.classList.add('hidden');
+      }
+    }
+
+    // API HELPER
+    async function apiPost(action, dataObj = {}) {
       try {
-        await fetch(APPS_SCRIPT_URL, {
+        const bodyPayload = JSON.stringify({ action: action, ...dataObj });
+        const res = await fetch(APPS_SCRIPT_URL, {
           method: "POST",
-          mode: "no-cors",
           headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify(payload)
+          body: bodyPayload
         });
+        return await res.json();
       } catch (err) {
-        alert("Upload error: " + err.message);
+        console.warn("API Call:", err);
+        return { success: false, error: err.message };
       }
     }
   </script>
