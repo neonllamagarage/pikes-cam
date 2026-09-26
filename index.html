@@ -561,18 +561,21 @@
       btn.innerHTML = `<span class="loader"></span> UPDATING...`;
       btn.disabled = true;
 
+      const chosenSize = (document.getElementById('studioSizeSelect').value || selectedAuditItem.size || 'One Size').trim();
+
       const payload = {
         itemId: selectedAuditItem.itemId,
         sku: selectedAuditItem.sku,
         bin: document.getElementById('studioBinInput').value.trim().toUpperCase(),
         title: selectedAuditItem.title,
         price: selectedAuditItem.price,
-        confirmedSize: document.getElementById('studioSizeSelect').value,
+        confirmedSize: chosenSize,
         confirmedQty: parseInt(document.getElementById('studioQtyInput').value) || 1,
         imagesBase64: auditShots
       };
 
       selectedAuditItem.isOverhauled = true;
+      selectedAuditItem.size = chosenSize; // Updates the card badge immediately in local view
 
       apiPost("submitCostumeOverhaul", { payload: payload });
 
