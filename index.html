@@ -258,7 +258,12 @@
       try {
         if (videoStream) videoStream.getTracks().forEach(t => t.stop());
         videoStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          video: { 
+            facingMode: { ideal: "environment" }, 
+            aspectRatio: { exact: 1.0 },
+            width: { ideal: 1200 }, 
+            height: { ideal: 1200 } 
+          },
           audio: false
         });
         video.srcObject = videoStream;
@@ -280,7 +285,7 @@
       }
     }
 
-   // FLASH & CAPTURE LOGIC (TRUE 1:1 SQUARE CENTER CROP)
+  // FLASH & CAPTURE LOGIC (DIRECT 1:1 SENSOR DUMP)
     function captureRawBase64() {
       const video = document.getElementById('liveVideo');
       const canvas = document.getElementById('frameCanvas');
@@ -292,21 +297,18 @@
 
       const vW = video.videoWidth;
       const vH = video.videoHeight;
+      const side = Math.min(vW, vH);
 
-      // Extract the largest possible square centered from the camera sensor
-      const squareDim = Math.min(vW, vH);
-      const sX = Math.round((vW - squareDim) / 2);
-      const sY = Math.round((vH - squareDim) / 2);
+      // Center crop safely in case the hardware driver only accepted aspect ratio as ideal
+      const sX = Math.floor((vW - side) / 2);
+      const sY = Math.floor((vH - side) / 2);
 
-      // Clamp max resolution to 1200x1200px for fast Drive uploads and sharp eBay galleries
-      const outDim = Math.min(squareDim, 1200);
-
-      canvas.width = outDim;
-      canvas.height = outDim;
+      const maxDim = Math.min(side, 1200);
+      canvas.width = maxDim;
+      canvas.height = maxDim;
 
       const ctx = canvas.getContext('2d');
-      // Draw exclusively the centered 1:1 square
-      ctx.drawImage(video, sX, sY, squareDim, squareDim, 0, 0, outDim, outDim);
+      ctx.drawImage(video, sX, sY, side, side, 0, 0, maxDim, maxDim);
 
       if (navigator.vibrate) navigator.vibrate(25);
 
