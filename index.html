@@ -34,8 +34,8 @@
       </div>
     </div>
 
-    <!-- PERSISTENT LIVE VIEWFINDER -->
-    <div class="relative w-full aspect-[4/3] max-h-[460px] bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex items-center justify-center">
+    <!-- PERSISTENT LIVE VIEWFINDER (1:1 SQUARE) -->
+    <div class="relative w-full max-w-[480px] mx-auto aspect-square bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex items-center justify-center">
       <video id="liveVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
       <div id="flashScreen" class="absolute inset-0 pointer-events-none z-30"></div>
       <canvas id="frameCanvas" class="hidden"></canvas>
@@ -280,7 +280,7 @@
       }
     }
 
-   // FLASH & CAPTURE LOGIC (ACCURATE VIEWPORT SLICE)
+   // FLASH & CAPTURE LOGIC (TRUE 1:1 SQUARE CENTER CROP)
     function captureRawBase64() {
       const video = document.getElementById('liveVideo');
       const canvas = document.getElementById('frameCanvas');
@@ -290,53 +290,23 @@
       flash.classList.add('flash-overlay');
       setTimeout(() => flash.classList.remove('flash-overlay'), 120);
 
-      // Measure the actual visible clipping frame on screen
-      const viewportEl = video.parentElement;
-      const viewRect = viewportEl.getBoundingClientRect();
-      const viewAspect = viewRect.width / viewRect.height;
+      const vW = video.videoWidth;
+      const vH = video.videoHeight;
 
-      // Handle sensor dimensions vs orientation
-      let vW = video.videoWidth;
-      let vH = video.videoHeight;
+      // Extract the largest possible square centered from the camera sensor
+      const squareDim = Math.min(vW, vH);
+      const sX = Math.round((vW - squareDim) / 2);
+      const sY = Math.round((vH - squareDim) / 2);
 
-      // Check whether orientation is portrait (height > width) or landscape
-      const isPortraitView = viewRect.height > viewRect.width;
-      const isPortraitStream = vH > vW;
+      // Clamp max resolution to 1200x1200px for fast Drive uploads and sharp eBay galleries
+      const outDim = Math.min(squareDim, 1200);
 
-      let sX = 0, sY = 0, sW = vW, sH = vH;
-
-      // Calculate the exact slice corresponding to CSS 'object-fit: cover'
-      const streamAspect = vW / vH;
-
-      if (streamAspect > viewAspect) {
-        // Video stream is wider than viewport: crop horizontal sides
-        sW = Math.round(vH * viewAspect);
-        sX = Math.round((vW - sW) / 2);
-      } else {
-        // Video stream is taller than viewport: crop top and bottom
-        sH = Math.round(vW / viewAspect);
-        sY = Math.round((vH - sH) / 2);
-      }
-
-      // Constrain final size to a maximum of 1200px on the longest edge
-      let maxEdge = 1200;
-      let outW = sW;
-      let outH = sH;
-
-      if (outW >= outH && outW > maxEdge) {
-        outH = Math.round(outH * (maxEdge / outW));
-        outW = maxEdge;
-      } else if (outH > outW && outH > maxEdge) {
-        outW = Math.round(outW * (maxEdge / outH));
-        outH = maxEdge;
-      }
-
-      canvas.width = outW;
-      canvas.height = outH;
+      canvas.width = outDim;
+      canvas.height = outDim;
 
       const ctx = canvas.getContext('2d');
-      // Draw exclusively the visible region into the canvas
-      ctx.drawImage(video, sX, sY, sW, sH, 0, 0, outW, outH);
+      // Draw exclusively the centered 1:1 square
+      ctx.drawImage(video, sX, sY, squareDim, squareDim, 0, 0, outDim, outDim);
 
       if (navigator.vibrate) navigator.vibrate(25);
 
