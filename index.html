@@ -419,6 +419,18 @@
       renderCardGrid();
     }
 
+    function parseItemSize(title) {
+      if (!title) return 'ONE SIZE';
+      const match = title.match(/\b(\d+[-/]\d+\s*[YyMm]?|\d+\s*[YyMm]|One Size|X-Large|Large|Medium|Small|Toddler|Infant|Adult|Child|Plus|2T|3T|4T)\b|(?<!['’])\b(XL|L|M|S)\b/i);
+      if (!match) return 'ONE SIZE';
+      let s = match[0].toUpperCase();
+      if (s === 'S') return 'SMALL';
+      if (s === 'M') return 'MEDIUM';
+      if (s === 'L') return 'LARGE';
+      if (s === 'XL') return 'X-LARGE';
+      return s;
+    }
+
     function renderCardGrid() {
       const container = document.getElementById('auditGridContainer');
       container.innerHTML = '';
@@ -426,20 +438,34 @@
       const visible = activeBoxItems.filter(i => !hideDone || !i.isOverhauled);
 
       if (visible.length === 0) {
-        container.innerHTML = `<div class="col-span-full p-8 text-center text-emerald-400 font-black text-xs">🎉 All items in this box completed!</div>`;
+        container.innerHTML = `<div class="col-span-full p-8 text-center text-emerald-400 font-black text-sm">🎉 All items in this box completed!</div>`;
         return;
       }
 
       visible.forEach(item => {
+        const sizeBadge = parseItemSize(item.title);
+
         container.innerHTML += `
-          <div onclick="openItemStudio('${item.sku}')" class="glass-panel p-2.5 rounded-xl border-2 ${item.isOverhauled ? 'border-emerald-500/50 opacity-70' : 'border-slate-700 hover:border-orange-500'} cursor-pointer flex flex-col justify-between transition active:scale-95 shadow">
-            <span class="text-[9px] font-mono font-bold text-orange-400">${item.sku}</span>
-            <div class="w-full h-32 bg-black/40 rounded-lg overflow-hidden flex items-center justify-center my-1.5">
-              <img src="${item.imageUrl || 'https://via.placeholder.com/100'}" class="w-full h-full object-contain p-1">
+          <div onclick="openItemStudio('${item.sku}')" class="glass-panel p-3 rounded-2xl border-2 ${item.isOverhauled ? 'border-emerald-500/50 opacity-70' : 'border-slate-700 hover:border-orange-500'} cursor-pointer flex flex-col justify-between transition active:scale-95 shadow-lg group">
+            
+            <!-- HIGH-PROMINENCE SIZE & QTY HEADER -->
+            <div class="flex items-center justify-between gap-1 mb-2">
+              <span class="text-xs sm:text-sm font-black tracking-wider px-3 py-1 rounded-xl bg-orange-600 text-white shadow border border-orange-400 group-hover:scale-105 transition transform">
+                ${sizeBadge}
+              </span>
+              <span class="text-[11px] font-mono font-bold bg-slate-900 border border-slate-700 text-slate-300 px-2 py-0.5 rounded-lg">
+                Qty: ${item.qty}
+              </span>
             </div>
-            <div>
-              <span class="text-[10px] font-mono font-bold text-slate-300">Qty: ${item.qty}</span>
-              <h4 class="text-xs font-bold text-white line-clamp-1">${item.title}</h4>
+
+            <!-- PRODUCT THUMBNAIL -->
+            <div class="w-full h-36 sm:h-40 bg-black/50 rounded-xl overflow-hidden flex items-center justify-center my-1 border border-slate-800/80">
+              <img src="${item.imageUrl || 'https://via.placeholder.com/120'}" class="w-full h-full object-contain p-1.5 pointer-events-none">
+            </div>
+
+            <!-- TITLE -->
+            <div class="pt-1.5">
+              <h4 class="text-xs font-bold text-white line-clamp-2 leading-tight">${item.title}</h4>
             </div>
           </div>`;
       });
