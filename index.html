@@ -280,7 +280,7 @@
       }
     }
 
-    // FLASH & CAPTURE LOGIC
+    // FLASH & CAPTURE LOGIC (WYSIWYG BOUNDING CROP)
     function captureRawBase64() {
       const video = document.getElementById('liveVideo');
       const canvas = document.getElementById('frameCanvas');
@@ -290,13 +290,45 @@
       flash.classList.add('flash-overlay');
       setTimeout(() => flash.classList.remove('flash-overlay'), 120);
 
-      let max = 1280;
-      let w = video.videoWidth, h = video.videoHeight;
-      if (w > h && w > max) { h = Math.round(h * (max / w)); w = max; }
-      else if (h > max) { w = Math.round(w * (max / h)); h = max; }
+      const vW = video.videoWidth;
+      const vH = video.videoHeight;
 
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+      // Determine the aspect ratio of the live visible window container
+      const containerRect = video.getBoundingClientRect();
+      const displayAspect = containerRect.width / containerRect.height;
+      const streamAspect = vW / vH;
+
+      let sX = 0, sY = 0, sW = vW, sH = vH;
+
+      // Compute exact source crop equivalent to CSS 'object-fit: cover'
+      if (streamAspect > displayAspect) {
+        // Stream is wider than container: crop horizontal edges
+        sW = Math.round(vH * displayAspect);
+        sX = Math.round((vW - sW) / 2);
+      } else {
+        // Stream is taller than container: crop vertical top/bottom edges
+        sH = Math.round(vW / displayAspect);
+        sY = Math.round((vH - sH) / 2);
+      }
+
+      // Scale output proportionally, clamping longest edge to 1280px
+      let max = 1280;
+      let outW = sW, outH = sH;
+      if (outW > outH && outW > max) {
+        outH = Math.round(outH * (max / outW));
+        outW = max;
+      } else if (outH > max) {
+        outW = Math.round(outW * (max / outH));
+        outH = max;
+      }
+
+      canvas.width = outW;
+      canvas.height = outH;
+
+      const ctx = canvas.getContext('2d');
+      // Draw ONLY the exact cropped region visible in the viewfinder
+      ctx.drawImage(video, sX, sY, sW, sH, 0, 0, outW, outH);
+
       if (navigator.vibrate) navigator.vibrate(25);
 
       return canvas.toDataURL('image/jpeg', 0.72);
