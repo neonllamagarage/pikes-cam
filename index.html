@@ -34,8 +34,8 @@
       </div>
     </div>
 
-    <!-- PERSISTENT LIVE VIEWFINDER -->
-    <div id="viewfinderWrapper" class="relative w-full aspect-[4/3] max-h-[460px] bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex items-center justify-center">
+    <!-- PERSISTENT LIVE VIEWFINDER (MAXIMIZED VIEWPORT) -->
+    <div id="viewfinderWrapper" class="relative w-full h-[52vh] sm:h-[58vh] max-h-[600px] bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex items-center justify-center">
       <video id="liveVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
       <div id="flashScreen" class="absolute inset-0 pointer-events-none z-30"></div>
       <canvas id="frameCanvas" class="hidden"></canvas>
@@ -51,26 +51,26 @@
       </div>
 
       <!-- AUDIT HUD REFERENCE OVERLAY -->
-      <div id="auditOverlayBox" class="hidden absolute top-3 right-3 w-28 sm:w-36 aspect-square bg-slate-950/80 border-2 border-orange-500 rounded-xl overflow-hidden shadow-2xl z-20 flex flex-col">
-        <span class="text-[9px] bg-orange-600 text-white font-black text-center py-0.5">OLD EBAY PHOTO</span>
+      <div id="auditOverlayBox" class="hidden absolute top-2 right-2 w-24 sm:w-32 aspect-square bg-slate-950/90 border-2 border-orange-500 rounded-xl overflow-hidden shadow-2xl z-20 flex flex-col">
+        <span class="text-[8px] bg-orange-600 text-white font-black text-center py-0.5 uppercase tracking-wider">Old eBay Pic</span>
         <img id="auditRefThumb" src="" class="w-full h-full object-contain p-1">
       </div>
 
       <!-- AUDIT HUD TARGET STEP PILL -->
-      <div id="auditTargetBadge" class="hidden absolute top-3 left-3 bg-slate-950/80 backdrop-blur px-3 py-1 rounded-full border border-orange-500 text-xs font-mono font-black text-orange-400 z-20">
+      <div id="auditTargetBadge" class="hidden absolute top-2 left-2 bg-slate-950/90 backdrop-blur px-3 py-1 rounded-full border border-orange-500 text-xs font-mono font-black text-orange-400 z-20">
         TARGET: <span id="auditStepName">1. FRONT</span>
       </div>
 
       <!-- INTAKE SHOT COUNTER BADGE -->
-      <div id="intakeBadge" class="absolute top-3 left-3 bg-slate-950/80 backdrop-blur px-3 py-1 rounded-full border border-slate-700 text-xs font-mono font-bold text-white z-20">
+      <div id="intakeBadge" class="absolute top-2 left-2 bg-slate-950/90 backdrop-blur px-3 py-1 rounded-full border border-slate-700 text-xs font-mono font-bold text-white z-20">
         Shots: <span id="shotCount" class="text-emerald-400 font-black text-sm">0</span> / 12
       </div>
 
-      <!-- CONTINUOUS HARDWARE SHUTTER -->
-      <div class="absolute bottom-4 inset-x-0 flex items-center justify-center z-20">
-        <button type="button" onclick="handleShutterPress()" class="shutter-glow bg-emerald-500 hover:bg-emerald-400 border-4 border-white w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition">
+      <!-- CONTINUOUS HARDWARE SHUTTER (POSITIONED DOWN NEAR BOTTOM) -->
+      <div class="absolute bottom-2 inset-x-0 flex items-center justify-center z-20 pointer-events-none">
+        <button type="button" onclick="handleShutterPress()" class="pointer-events-auto shutter-glow bg-emerald-500 hover:bg-emerald-400 border-4 border-white w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition active:scale-90">
           <div class="w-14 h-14 rounded-full border-2 border-black/20 bg-emerald-600 flex items-center justify-center">
-            <span class="text-white text-xl">📸</span>
+            <span class="text-white text-2xl">📸</span>
           </div>
         </button>
       </div>
@@ -182,9 +182,18 @@
         <div class="grid grid-cols-12 gap-2 pt-1">
           <div class="col-span-5">
             <label class="block text-[10px] font-black text-orange-400 uppercase mb-1">Size</label>
-            <select id="studioSizeSelect" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold text-xs outline-none">
-              <option value="Small">Small</option><option value="Medium">Medium</option><option value="Large">Large</option><option value="X-Large">X-Large</option><option value="One Size">One Size</option><option value="Toddler">Toddler</option>
+            <select id="studioSizeSelect" onchange="handleStudioSizeChange()" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold text-xs outline-none">
+              <option value="One Size">One Size</option>
+              <option value="Small">Small</option>
+              <option value="Medium">Medium</option>
+              <option value="Large">Large</option>
+              <option value="X-Large">X-Large</option>
+              <option value="Toddler">Toddler</option>
+              <option value="Child">Child</option>
+              <option value="Adult">Adult</option>
+              <option value="CUSTOM">OTHER / CUSTOM...</option>
             </select>
+            <input type="text" id="studioCustomSizeInput" placeholder="Enter Custom Size" class="hidden w-full mt-1.5 p-2 bg-slate-900 border border-orange-500 rounded-lg text-white font-bold text-xs outline-none">
           </div>
           <div class="col-span-4">
             <label class="block text-[10px] font-black text-emerald-400 uppercase mb-1">Bin</label>
@@ -705,6 +714,18 @@ function applyCustomIntakeQty() {
 
     let isUnlistedActive = false;
 
+    function handleStudioSizeChange() {
+      const sel = document.getElementById('studioSizeSelect');
+      const customInp = document.getElementById('studioCustomSizeInput');
+      if (sel.value === 'CUSTOM') {
+        customInp.classList.remove('hidden');
+        customInp.focus();
+      } else {
+        customInp.classList.add('hidden');
+        customInp.value = '';
+      }
+    }
+
     function openItemStudio(sku) {
       selectedAuditItem = activeBoxItems.find(i => i.sku === sku);
       if (!selectedAuditItem) return;
@@ -717,18 +738,28 @@ function applyCustomIntakeQty() {
       document.getElementById('slot-tag-2').innerText = "WAIT";
 
       document.getElementById('studioItemTitle').innerText = selectedAuditItem.title;
-      if (selectedAuditItem.size && selectedAuditItem.size.trim().length > 0) {
-        const sel = document.getElementById('studioSizeSelect');
-        const cleanSize = selectedAuditItem.size.trim();
-        const hasOption = Array.from(sel.options).some(opt => opt.value.toLowerCase() === cleanSize.toLowerCase());
-        
-        if (hasOption) {
-          sel.value = cleanSize;
-        } else {
-          const customOpt = new Option(cleanSize, cleanSize, true, true);
-          sel.add(customOpt);
-        }
+
+      // RESOLVE SIZE: Priority: 1. Stored Column K -> 2. Title regex badge (matching the card)
+      const resolvedSize = (selectedAuditItem.size && selectedAuditItem.size.trim().length > 0)
+        ? selectedAuditItem.size.trim()
+        : parseItemSize(selectedAuditItem.title);
+
+      const sel = document.getElementById('studioSizeSelect');
+      const customInp = document.getElementById('studioCustomSizeInput');
+      customInp.classList.add('hidden');
+      customInp.value = '';
+
+      // Match against standard options case-insensitively
+      const matchedOpt = Array.from(sel.options).find(opt => opt.value.toLowerCase() === resolvedSize.toLowerCase());
+      if (matchedOpt) {
+        sel.value = matchedOpt.value;
+      } else {
+        // Switch to CUSTOM and populate the custom text box
+        sel.value = 'CUSTOM';
+        customInp.classList.remove('hidden');
+        customInp.value = resolvedSize;
       }
+
       document.getElementById('studioItemSku').innerText = `SKU: ${selectedAuditItem.sku}`;
       document.getElementById('studioQtyInput').value = selectedAuditItem.qty || 1;
       document.getElementById('studioBinInput').value = document.getElementById('targetBin').value.trim().toUpperCase();
@@ -840,7 +871,9 @@ function applyCustomIntakeQty() {
       btn.innerHTML = `<span class="loader"></span> UPDATING...`;
       btn.disabled = true;
 
-      const chosenSize = (document.getElementById('studioSizeSelect').value || selectedAuditItem.size || 'One Size').trim();
+      const selVal = document.getElementById('studioSizeSelect').value;
+      const customVal = document.getElementById('studioCustomSizeInput').value.trim();
+      const chosenSize = (selVal === 'CUSTOM' ? (customVal || 'One Size') : selVal).trim();
 
       const payload = {
         itemId: selectedAuditItem.itemId,
