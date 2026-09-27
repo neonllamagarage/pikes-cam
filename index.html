@@ -410,14 +410,24 @@
       }
     }
     function openCamQtyModal() {
-  const current = parseInt(document.getElementById('intakeQty').value, 10) || 1;
-  const choice = prompt("Select Quantity (1-10 or custom):", current);
-  if (choice !== null) {
-    const val = parseInt(choice, 10);
-    if (!isNaN(val) && val > 0) {
-      document.getElementById('intakeQty').value = val;
-      document.getElementById('intakeQtyBtn').innerText = val;
-    }
+  document.getElementById('intakeQtyCustomInput').value = '';
+  document.getElementById('intakeQtyModal').style.display = 'flex';
+}
+
+function closeCamQtyModal() {
+  document.getElementById('intakeQtyModal').style.display = 'none';
+}
+
+function setQuickIntakeQty(val) {
+  document.getElementById('intakeQty').value = val;
+  document.getElementById('intakeQtyBtn').innerText = val;
+  closeCamQtyModal();
+}
+
+function applyCustomIntakeQty() {
+  const val = parseInt(document.getElementById('intakeQtyCustomInput').value, 10);
+  if (!isNaN(val) && val > 0) {
+    setQuickIntakeQty(val);
   }
 }
     function setAuditStep(step) {
@@ -730,5 +740,30 @@
       }
     }
   </script>
+  <!-- RAPID INTAKE QUANTITY PICKER MODAL -->
+  <div id="intakeQtyModal" style="display: none;" class="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="glass-panel p-5 rounded-2xl shadow-2xl border-2 border-emerald-500/60 max-w-xs w-full space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+        <h3 class="text-sm font-black text-emerald-400 uppercase tracking-wider">Select Quantity</h3>
+        <button type="button" onclick="closeCamQtyModal()" class="text-slate-400 hover:text-white text-xs font-bold px-2 py-1">✕ Close</button>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <button type="button" onclick="setQuickIntakeQty(1)" class="p-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-mono font-black text-sm border border-slate-700">1</button>
+        <button type="button" onclick="setQuickIntakeQty(2)" class="p-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-mono font-black text-sm border border-slate-700 transition">2</button>
+        <button type="button" onclick="setQuickIntakeQty(3)" class="p-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-mono font-black text-sm border border-slate-700 transition">3</button>
+        <button type="button" onclick="setQuickIntakeQty(4)" class="p-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-mono font-black text-sm border border-slate-700 transition">4</button>
+        <button type="button" onclick="setQuickIntakeQty(5)" class="p-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-mono font-black text-sm border border-slate-700 transition">5</button>
+        <button type="button" onclick="setQuickIntakeQty(6)" class="p-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-mono font-black text-sm border border-slate-700 transition">6</button>
+        <button type="button" onclick="setQuickIntakeQty(7)" class="p-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-mono font-black text-sm border border-slate-700 transition">7</button>
+        <button type="button" onclick="setQuickIntakeQty(8)" class="p-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-mono font-black text-sm border border-slate-700 transition">8</button>
+        <button type="button" onclick="setQuickIntakeQty(9)" class="p-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-mono font-black text-sm border border-slate-700 transition">9</button>
+        <button type="button" onclick="setQuickIntakeQty(10)" class="col-span-3 p-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-mono font-black text-sm border border-slate-700 transition">10</button>
+      </div>
+      <div class="pt-2 border-t border-slate-800 flex gap-2">
+        <input type="number" id="intakeQtyCustomInput" placeholder="Custom #" min="1" class="flex-grow p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono font-bold text-xs outline-none">
+        <button type="button" onclick="applyCustomIntakeQty()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs">Set</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
