@@ -35,7 +35,7 @@
     </div>
 
     <!-- PERSISTENT LIVE VIEWFINDER -->
-    <div class="relative w-full aspect-[4/3] max-h-[460px] bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex items-center justify-center">
+    <div id="viewfinderWrapper" class="relative w-full aspect-[4/3] max-h-[460px] bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex items-center justify-center">
       <video id="liveVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
       <div id="flashScreen" class="absolute inset-0 pointer-events-none z-30"></div>
       <canvas id="frameCanvas" class="hidden"></canvas>
@@ -198,6 +198,53 @@
 
         <button onclick="commitAuditRevision()" id="btnReviseAudit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-xl text-sm shadow-2xl border border-blue-400 transition active:scale-95 flex items-center justify-center gap-2">
           <span>🚀</span> <span id="reviseLabel">OVERWRITE EBAY & RETURN</span>
+        </button>
+      </div>
+
+      <!-- STAGE D: UNLISTED ITEM STUDIO CONTROLS -->
+      <div id="unlistedStudioControls" class="hidden glass-panel p-4 rounded-2xl space-y-3 border-2 border-orange-500/80 shadow-xl">
+        <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+          <span class="text-xs font-black text-orange-400 uppercase tracking-wider">Create Unlisted Item</span>
+          <button type="button" onclick="exitUnlistedToGrid()" class="text-slate-400 hover:text-white text-xs font-bold px-2 py-1">✕ Cancel</button>
+        </div>
+
+        <input type="text" id="unlistedThemeInput" placeholder="Item Name / Theme (e.g. Batman, Corvette)" class="w-full p-3 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold text-xs outline-none focus:border-orange-500">
+
+        <!-- 3-SLOT MINI STRIP -->
+        <div class="grid grid-cols-3 gap-2">
+          <div id="unlisted-slot-0" onclick="setAuditStep(0)" class="p-2 rounded-xl bg-orange-600 text-white border border-orange-400 text-center cursor-pointer">
+            <span class="block text-[10px] font-black">1. FRONT</span>
+            <span id="unlisted-slot-tag-0" class="text-[9px] font-mono">READY</span>
+          </div>
+          <div id="unlisted-slot-1" onclick="setAuditStep(1)" class="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700 text-center cursor-pointer">
+            <span class="block text-[10px] font-black">2. BACK</span>
+            <span id="unlisted-slot-tag-1" class="text-[9px] font-mono">WAIT</span>
+          </div>
+          <div id="unlisted-slot-2" onclick="setAuditStep(2)" class="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700 text-center cursor-pointer">
+            <span class="block text-[10px] font-black">3. TAG</span>
+            <span id="unlisted-slot-tag-2" class="text-[9px] font-mono">WAIT</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-12 gap-2 pt-1">
+          <div class="col-span-5">
+            <label class="block text-[10px] font-black text-orange-400 uppercase mb-1">Size</label>
+            <select id="unlistedSizeSelect" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold text-xs outline-none">
+              <option value="One Size">One Size</option><option value="Small">Small</option><option value="Medium">Medium</option><option value="Large">Large</option><option value="X-Large">X-Large</option><option value="Toddler">Toddler</option>
+            </select>
+          </div>
+          <div class="col-span-4">
+            <label class="block text-[10px] font-black text-emerald-400 uppercase mb-1">Bin</label>
+            <input type="text" id="unlistedBinInput" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-emerald-400 font-mono font-black text-xs uppercase outline-none">
+          </div>
+          <div class="col-span-3">
+            <label class="block text-[10px] font-black text-blue-400 uppercase mb-1">Qty</label>
+            <input type="number" id="unlistedQtyInput" value="1" min="1" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-black text-xs text-center outline-none">
+          </div>
+        </div>
+
+        <button type="button" onclick="commitUnlistedCostume()" id="btnSaveUnlisted" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-4 rounded-xl text-sm shadow-2xl border border-orange-400 transition active:scale-95 flex items-center justify-center gap-2">
+          <span>💾</span> <span id="unlistedSaveLabel">SAVE UNLISTED & RETURN</span>
         </button>
       </div>
     </div>
@@ -484,15 +531,21 @@
       await apiPost("stageIntake", { payload: payload });
     }
 
-    // --- AUDIT ACTIONS ---
+    // --- AUDIT & UNLISTED ACTIONS ---
     function snapAuditFrame() {
-      if (!selectedAuditItem) return alert("Please select an item from the bin grid first.");
+      if (!selectedAuditItem && !isUnlistedActive) return alert("Please select an item from the bin grid first.");
       const b64 = captureRawBase64();
       if (!b64) return;
 
       auditShots[auditStep] = b64;
-      document.getElementById(`slot-tag-${auditStep}`).innerText = "DONE ✔";
-      document.getElementById(`slot-${auditStep}`).className = "p-2 rounded-xl bg-emerald-700 text-white border border-emerald-500 text-center cursor-pointer";
+
+      const tagId = isUnlistedActive ? `unlisted-slot-tag-${auditStep}` : `slot-tag-${auditStep}`;
+      const slotId = isUnlistedActive ? `unlisted-slot-${auditStep}` : `slot-${auditStep}`;
+
+      const tagEl = document.getElementById(tagId);
+      const slotEl = document.getElementById(slotId);
+      if (tagEl) tagEl.innerText = "DONE ✔";
+      if (slotEl) slotEl.className = "p-2 rounded-xl bg-emerald-700 text-white border border-emerald-500 text-center cursor-pointer";
 
       // Auto advance to next empty slot
       let nextEmpty = [0, 1, 2].find(i => !auditShots[i]);
@@ -650,10 +703,13 @@ function applyCustomIntakeQty() {
       });
     }
 
+    let isUnlistedActive = false;
+
     function openItemStudio(sku) {
       selectedAuditItem = activeBoxItems.find(i => i.sku === sku);
       if (!selectedAuditItem) return;
 
+      isUnlistedActive = false;
       auditShots = [null, null, null];
       setAuditStep(0);
       document.getElementById('slot-tag-0').innerText = "READY";
@@ -669,7 +725,6 @@ function applyCustomIntakeQty() {
         if (hasOption) {
           sel.value = cleanSize;
         } else {
-          // Temporarily append the custom size so it displays cleanly in the studio
           const customOpt = new Option(cleanSize, cleanSize, true, true);
           sel.add(customOpt);
         }
@@ -682,18 +737,87 @@ function applyCustomIntakeQty() {
       document.getElementById('auditOverlayBox').classList.remove('hidden');
       document.getElementById('auditTargetBadge').classList.remove('hidden');
 
+      // SHOW CAMERA VIEW ONLY WHEN AN ITEM IS SELECTED
+      const cam = document.getElementById('viewfinderWrapper');
+      if (cam) cam.classList.remove('hidden');
+
       document.getElementById('auditStageBinSelect').classList.add('hidden');
       document.getElementById('auditCardDeck').classList.add('hidden');
+      document.getElementById('unlistedStudioControls').classList.add('hidden');
       document.getElementById('auditStudioControls').classList.remove('hidden');
     }
 
     function exitStudioToGrid() {
       selectedAuditItem = null;
+      isUnlistedActive = false;
       document.getElementById('auditOverlayBox').classList.add('hidden');
       document.getElementById('auditTargetBadge').classList.add('hidden');
       document.getElementById('auditStudioControls').classList.add('hidden');
+      document.getElementById('unlistedStudioControls').classList.add('hidden');
+
+      // HIDE CAMERA ONCE BACK AT THE BIN GRID
+      const cam = document.getElementById('viewfinderWrapper');
+      if (cam && activeMode === 'audit') cam.classList.add('hidden');
+
       document.getElementById('auditStageBinSelect').classList.remove('hidden');
       document.getElementById('auditCardDeck').classList.remove('hidden');
+    }
+
+    function startUnlistedStudio() {
+      isUnlistedActive = true;
+      selectedAuditItem = null;
+      auditShots = [null, null, null];
+      setAuditStep(0);
+
+      document.getElementById('unlisted-slot-tag-0').innerText = "READY";
+      document.getElementById('unlisted-slot-tag-1').innerText = "WAIT";
+      document.getElementById('unlisted-slot-tag-2').innerText = "WAIT";
+
+      document.getElementById('unlistedThemeInput').value = '';
+      document.getElementById('unlistedBinInput').value = document.getElementById('targetBin').value.trim().toUpperCase() || 'O-H3';
+      document.getElementById('unlistedQtyInput').value = '1';
+
+      document.getElementById('auditOverlayBox').classList.add('hidden');
+      document.getElementById('auditTargetBadge').classList.remove('hidden');
+
+      // SHOW CAMERA VIEW FOR UNLISTED CAPTURE
+      const cam = document.getElementById('viewfinderWrapper');
+      if (cam) cam.classList.remove('hidden');
+
+      document.getElementById('auditStageBinSelect').classList.add('hidden');
+      document.getElementById('auditCardDeck').classList.add('hidden');
+      document.getElementById('auditStudioControls').classList.add('hidden');
+      document.getElementById('unlistedStudioControls').classList.remove('hidden');
+    }
+
+    function exitUnlistedToGrid() {
+      exitStudioToGrid();
+    }
+
+    async function commitUnlistedCostume() {
+      const theme = document.getElementById('unlistedThemeInput').value.trim();
+      if (!theme) return alert("Please enter an item name/theme.");
+      if (!auditShots[0] || !auditShots[1] || !auditShots[2]) {
+        return alert("Please snap all 3 shots (Front, Back, and Tag).");
+      }
+
+      const btn = document.getElementById('btnSaveUnlisted');
+      btn.innerHTML = `<span class="loader"></span> SAVING...`;
+      btn.disabled = true;
+
+      const payload = {
+        bin: document.getElementById('unlistedBinInput').value.trim().toUpperCase(),
+        theme: theme,
+        confirmedSize: document.getElementById('unlistedSizeSelect').value || 'One Size',
+        confirmedQty: parseInt(document.getElementById('unlistedQtyInput').value) || 1,
+        imagesBase64: auditShots
+      };
+
+      await apiPost("saveUnlistedCostumeBoxItem", { payload: payload });
+
+      btn.innerHTML = `<span>💾</span> <span>SAVE UNLISTED & RETURN</span>`;
+      btn.disabled = false;
+      exitStudioToGrid();
     }
 
     async function commitAuditRevision() {
@@ -791,12 +915,15 @@ function applyCustomIntakeQty() {
       const deckA = document.getElementById('deckAudit');
       const intakeBadge = document.getElementById('intakeBadge');
 
+      const cam = document.getElementById('viewfinderWrapper');
+
       if (mode === 'intake') {
         tabI.className = "px-5 py-2.5 rounded-lg text-xs sm:text-sm font-black tracking-wider bg-emerald-600 text-white shadow-lg";
         tabA.className = "px-5 py-2.5 rounded-lg text-xs sm:text-sm font-black tracking-wider text-slate-400 hover:text-white";
         deckI.classList.remove('hidden');
         deckA.classList.add('hidden');
         intakeBadge.classList.remove('hidden');
+        if (cam) cam.classList.remove('hidden');
         exitStudioToGrid();
       } else {
         tabA.className = "px-5 py-2.5 rounded-lg text-xs sm:text-sm font-black tracking-wider bg-orange-600 text-white shadow-lg";
@@ -804,6 +931,9 @@ function applyCustomIntakeQty() {
         deckA.classList.remove('hidden');
         deckI.classList.add('hidden');
         intakeBadge.classList.add('hidden');
+        // KEEP CAMERA HIDDEN IN AUDIT MODE UNTIL AN ITEM IS ACTIVELY CHOSEN
+        if (cam) cam.classList.add('hidden');
+        exitStudioToGrid();
       }
     }
 
