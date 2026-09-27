@@ -34,8 +34,8 @@
       </div>
     </div>
 
-    <!-- PERSISTENT LIVE VIEWFINDER (1:1 SQUARE) -->
-    <div class="relative w-full max-w-[480px] mx-auto aspect-square bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex items-center justify-center">
+    <!-- PERSISTENT LIVE VIEWFINDER -->
+    <div class="relative w-full aspect-[4/3] max-h-[460px] bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex items-center justify-center">
       <video id="liveVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
       <div id="flashScreen" class="absolute inset-0 pointer-events-none z-30"></div>
       <canvas id="frameCanvas" class="hidden"></canvas>
@@ -85,9 +85,10 @@
             <input type="text" id="intakeBin" placeholder="e.g. O-H3" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-emerald-400 font-mono font-black text-xs uppercase outline-none focus:border-blue-500">
           </div>
           <div class="col-span-3">
-            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Qty</label>
-            <input type="number" id="intakeQty" value="1" min="1" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono font-bold text-xs text-center outline-none">
-          </div>
+  <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Qty</label>
+  <button type="button" id="intakeQtyBtn" onclick="openCamQtyModal()" class="w-full p-2.5 bg-slate-950 border border-slate-700 hover:border-emerald-500 rounded-xl text-emerald-400 font-mono font-black text-xs text-center outline-none">1</button>
+  <input type="hidden" id="intakeQty" value="1">
+</div>
         </div>
 
         <!-- TRAY -->
@@ -258,12 +259,7 @@
       try {
         if (videoStream) videoStream.getTracks().forEach(t => t.stop());
         videoStream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            facingMode: { ideal: "environment" }, 
-            aspectRatio: { exact: 1.0 },
-            width: { ideal: 1200 }, 
-            height: { ideal: 1200 } 
-          },
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: false
         });
         video.srcObject = videoStream;
@@ -285,7 +281,7 @@
       }
     }
 
-  // FLASH & CAPTURE LOGIC (DIRECT 1:1 SENSOR DUMP)
+    // FLASH & CAPTURE LOGIC (WYSIWYG BOUNDING CROP)
     function captureRawBase64() {
       const video = document.getElementById('liveVideo');
       const canvas = document.getElementById('frameCanvas');
@@ -297,18 +293,42 @@
 
       const vW = video.videoWidth;
       const vH = video.videoHeight;
-      const side = Math.min(vW, vH);
 
-      // Center crop safely in case the hardware driver only accepted aspect ratio as ideal
-      const sX = Math.floor((vW - side) / 2);
-      const sY = Math.floor((vH - side) / 2);
+      // Determine the aspect ratio of the live visible window container
+      const containerRect = video.getBoundingClientRect();
+      const displayAspect = containerRect.width / containerRect.height;
+      const streamAspect = vW / vH;
 
-      const maxDim = Math.min(side, 1200);
-      canvas.width = maxDim;
-      canvas.height = maxDim;
+      let sX = 0, sY = 0, sW = vW, sH = vH;
+
+      // Compute exact source crop equivalent to CSS 'object-fit: cover'
+      if (streamAspect > displayAspect) {
+        // Stream is wider than container: crop horizontal edges
+        sW = Math.round(vH * displayAspect);
+        sX = Math.round((vW - sW) / 2);
+      } else {
+        // Stream is taller than container: crop vertical top/bottom edges
+        sH = Math.round(vW / displayAspect);
+        sY = Math.round((vH - sH) / 2);
+      }
+
+      // Scale output proportionally, clamping longest edge to 1280px
+      let max = 1280;
+      let outW = sW, outH = sH;
+      if (outW > outH && outW > max) {
+        outH = Math.round(outH * (max / outW));
+        outW = max;
+      } else if (outH > max) {
+        outW = Math.round(outW * (max / outH));
+        outH = max;
+      }
+
+      canvas.width = outW;
+      canvas.height = outH;
 
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, sX, sY, side, side, 0, 0, maxDim, maxDim);
+      // Draw ONLY the exact cropped region visible in the viewfinder
+      ctx.drawImage(video, sX, sY, sW, sH, 0, 0, outW, outH);
 
       if (navigator.vibrate) navigator.vibrate(25);
 
@@ -389,7 +409,17 @@
         setAuditStep(nextEmpty);
       }
     }
-
+    function openCamQtyModal() {
+  const current = parseInt(document.getElementById('intakeQty').value, 10) || 1;
+  const choice = prompt("Select Quantity (1-10 or custom):", current);
+  if (choice !== null) {
+    const val = parseInt(choice, 10);
+    if (!isNaN(val) && val > 0) {
+      document.getElementById('intakeQty').value = val;
+      document.getElementById('intakeQtyBtn').innerText = val;
+    }
+  }
+}
     function setAuditStep(step) {
       auditStep = step;
       const names = ["1. FRONT", "2. BACK", "3. TAG"];
