@@ -794,6 +794,17 @@ function applyCustomIntakeQty() {
       exitStudioToGrid();
     }
 
+    function openStorewideSearch() {
+      document.getElementById('modalSearch').classList.remove('hidden');
+      document.getElementById('storewideQuery').value = '';
+      document.getElementById('searchResultsList').innerHTML = '';
+      setTimeout(() => document.getElementById('storewideQuery').focus(), 100);
+    }
+
+    function closeStorewideSearch() {
+      document.getElementById('modalSearch').classList.add('hidden');
+    }
+
     async function commitUnlistedCostume() {
       const theme = document.getElementById('unlistedThemeInput').value.trim();
       if (!theme) return alert("Please enter an item name/theme.");
