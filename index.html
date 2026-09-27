@@ -39,6 +39,16 @@
       <video id="liveVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
       <div id="flashScreen" class="absolute inset-0 pointer-events-none z-30"></div>
       <canvas id="frameCanvas" class="hidden"></canvas>
+      <input type="file" id="hardwareFallbackInput" accept="image/*" capture="environment" class="hidden" onchange="handleFallbackNativeCapture(event)">
+      
+      <!-- STREAM INITIALIZING OVERLAY -->
+      <div id="streamFallbackNotice" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 p-4 text-center z-10 hidden">
+        <span class="text-3xl mb-2">📸</span>
+        <p class="text-xs text-slate-300 font-bold mb-3">Live stream paused or blocked.</p>
+        <button type="button" onclick="startCamera()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-lg border border-blue-400">
+          Retry Live Camera
+        </button>
+      </div>
 
       <!-- AUDIT HUD REFERENCE OVERLAY -->
       <div id="auditOverlayBox" class="hidden absolute top-3 right-3 w-28 sm:w-36 aspect-square bg-slate-950/80 border-2 border-orange-500 rounded-xl overflow-hidden shadow-2xl z-20 flex flex-col">
@@ -252,33 +262,114 @@
       }
     });
 
-    // 1. DIRECT HARDWARE CAMERA WEBRTC
+    // 1. DIRECT HARDWARE CAMERA WEBRTC (RESILIENT MOBILE FALLBACK)
     async function startCamera() {
       const video = document.getElementById('liveVideo');
       const status = document.getElementById('camStatus');
+      const notice = document.getElementById('streamFallbackNotice');
+      
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        if (status) {
+          status.innerText = "NATIVE SHUTTER";
+          status.className = "text-xs font-mono font-bold text-amber-400";
+        }
+        if (notice) notice.classList.remove('hidden');
+        return;
+      }
+
       try {
-        if (videoStream) videoStream.getTracks().forEach(t => t.stop());
-        videoStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        if (videoStream) {
+          videoStream.getTracks().forEach(t => t.stop());
+          videoStream = null;
+        }
+
+        // Tiered constraints: try ideal back camera without hard resolution locks
+        const constraints = {
+          video: {
+            facingMode: { ideal: "environment" }
+          },
           audio: false
-        });
+        };
+
+        videoStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = videoStream;
-        status.innerText = "STREAM ACTIVE";
-        status.className = "text-xs font-mono font-bold text-emerald-400 animate-pulse";
+        
+        // Explicitly trigger play to prevent mobile pause lock
+        await video.play();
+
+        if (status) {
+          status.innerText = "STREAM ACTIVE";
+          status.className = "text-xs font-mono font-bold text-emerald-400 animate-pulse";
+        }
+        if (notice) notice.classList.add('hidden');
+
       } catch (err) {
-        status.innerText = "CAMERA BLOCKED";
-        status.className = "text-xs font-mono font-bold text-red-400";
-        alert("Camera permission blocked. Please allow camera access in Chrome.");
+        console.warn("WebRTC Stream failed, activating native hardware fallback:", err);
+        if (status) {
+          status.innerText = "NATIVE SHUTTER";
+          status.className = "text-xs font-mono font-bold text-amber-400";
+        }
+        if (notice) notice.classList.remove('hidden');
       }
     }
 
-    // 2. CENTRAL SHUTTER ROUTER
+    // 2. CENTRAL SHUTTER ROUTER (AUTONOMOUS FALLBACK ROUTER)
     function handleShutterPress() {
-      if (activeMode === 'intake') {
-        snapIntakeFrame();
-      } else if (activeMode === 'audit') {
-        snapAuditFrame();
+      const video = document.getElementById('liveVideo');
+      
+      // If WebRTC is alive and streaming, capture frame instantly
+      if (videoStream && video && video.readyState >= 2 && video.videoWidth > 0) {
+        if (activeMode === 'intake') {
+          snapIntakeFrame();
+        } else if (activeMode === 'audit') {
+          snapAuditFrame();
+        }
+      } else {
+        // Fallback: Trigger native phone camera shutter dialog
+        const fallbackInput = document.getElementById('hardwareFallbackInput');
+        if (fallbackInput) fallbackInput.click();
       }
+    }
+
+    // NATIVE CAMERA SHUTTER CAPTURE HANDLER
+    function handleFallbackNativeCapture(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      e.target.value = ''; // Reset input so next click triggers cleanly
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const img = new Image();
+        img.onload = function() {
+          let canvas = document.getElementById('frameCanvas');
+          let max = 1280;
+          let w = img.width, h = img.height;
+          if (w > h && w > max) { h = Math.round(h * (max / w)); w = max; }
+          else if (h > max) { w = Math.round(w * (max / h)); h = max; }
+          
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          
+          const b64 = canvas.toDataURL('image/jpeg', 0.72);
+          
+          if (activeMode === 'intake') {
+            if (intakeShots.length >= 12) return alert("Maximum 12 shots reached.");
+            intakeShots.push(b64);
+            renderIntakeTray();
+          } else if (activeMode === 'audit') {
+            if (!selectedAuditItem) return alert("Select an item from the bin grid first.");
+            auditShots[auditStep] = b64;
+            document.getElementById(`slot-tag-${auditStep}`).innerText = "DONE ✔";
+            document.getElementById(`slot-${auditStep}`).className = "p-2 rounded-xl bg-emerald-700 text-white border border-emerald-500 text-center cursor-pointer";
+            let nextEmpty = [0, 1, 2].find(i => !auditShots[i]);
+            if (nextEmpty !== undefined) setAuditStep(nextEmpty);
+          }
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
     }
 
     // FLASH & CAPTURE LOGIC (WYSIWYG BOUNDING CROP)
